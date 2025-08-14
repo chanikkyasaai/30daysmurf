@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+
+body {
+  background: #0d0d0d;
+  overflow: hidden;
+  margin: 0;
+  height: 100vh;
+  font-family: 'Roboto Mono', monospace;
+  color: #e0e0e0;
+}
+
+.matrix-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  z-index: 2;
+  text-align: center;
+}
+
+.matrix-text {
+  color: #00ff41;
+  font-size: 4rem;
+  font-weight: 700;
+  text-shadow: 0 0 5px #00ff41, 0 0 15px #00ff41, 0 0 30px #00ff41;
+  z-index: 2;
+  margin-bottom: 2rem;
+  animation: flicker 3s infinite alternate;
+}
+
+/* Agent Section Revamp */
+#agent-section {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+#record-btn {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: #00ff41;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease-in-out;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+}
+
+#record-btn:hover:not(.recording) {
+    transform: scale(1.1);
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.8);
+}
+
+#record-btn.recording {
+    background-color: #ff3b30;
+    box-shadow: 0 0 25px rgba(255, 59, 48, 0.8);
+    animation: pulse-red 1.5s infinite;
+}
+
+#record-btn .icon {
+    font-size: 40px;
+    color: #0d0d0d;
+    transition: transform 0.3s ease;
+}
+
+#record-btn.recording .icon {
+    color: #fff;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 20px rgba(255, 59, 48, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+    }
+}
+
+#echo-audio {
+    display: none; /* Hide the audio player */
+}
+
+#echo-message {
+    font-size: 1.1em;
+    min-height: 1.5em; /* Prevent layout shift */
+    color: #00ff41;
+    text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+}
+
+.server-info {
+  color: #00ff41;
+  text-align: center;
+  font-size: 1rem;
+  z-index: 2;
+  opacity: 0.7;
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+}
+
+.server-info p {
+  margin: 5px 0;
+  text-shadow: 0 0 5px #00ff41;
+}
+
+@keyframes flicker {
+  0%, 18%, 22%, 25%, 53%, 57%, 100% {
+    text-shadow:
+      0 0 4px #00ff41,
+      0 0 11px #00ff41,
+      0 0 19px #00ff41,
+      0 0 40px #00ff41,
+      0 0 80px #00ff41;
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+  }
+}
