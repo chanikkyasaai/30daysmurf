@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 FastAPI Voice Agents Challenge - Day 12 Loaded');
+    console.log('🚀 FastAPI Voice Agents Challenge - Day 15 Loaded');
 
     // --- Session Management ---
     let sessionId = new URLSearchParams(window.location.search).get('session_id');
@@ -16,73 +16,99 @@ document.addEventListener('DOMContentLoaded', function() {
     const agentMessage = document.getElementById('echo-message');
     const icon = recordBtn.querySelector('.icon');
 
+    // --- State Management ---
     let mediaRecorder;
     let audioChunks = [];
-    let isRecording = false;
+    let agentState = 'IDLE'; // IDLE, RECORDING, THINKING, SPEAKING
+    let silenceTimeout;
 
     // --- Core Functions ---
-    async function playFallback() {
-        const fallbackText = "I'm having trouble connecting right now.";
-        agentMessage.textContent = fallbackText;
+    async function playFallback(message = "I'm having trouble connecting right now.") {
+        agentMessage.textContent = message;
         if ('speechSynthesis' in window) {
-            const utter = new SpeechSynthesisUtterance(fallbackText);
+            const utter = new SpeechSynthesisUtterance(message);
             window.speechSynthesis.speak(utter);
         }
-        resetUI();
+        updateUI('IDLE');
     }
 
-    const toggleRecording = () => {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
+    const handleInteraction = () => {
+        switch (agentState) {
+            case 'IDLE':
+            case 'THINKING': // Allow starting a new recording even if it's thinking
+                startRecording();
+                break;
+            case 'RECORDING':
+                stopRecording();
+                break;
+            case 'SPEAKING':
+                // Barge-in implementation
+                console.log("--- Barge-in: User interrupted agent ---");
+                agentAudio.pause(); // Stop the agent from speaking
+                agentAudio.currentTime = 0;
+                startRecording(); // Immediately start a new recording
+                break;
         }
     };
 
     const startRecording = async () => {
         console.log('--- Start recording ---');
-        agentMessage.textContent = 'Listening...';
-        agentAudio.style.display = 'none';
+        updateUI('RECORDING');
         
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
+            
             mediaRecorder.ondataavailable = event => {
-                if (event.data.size > 0) audioChunks.push(event.data);
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                    // If we receive data, reset the silence timeout
+                    clearTimeout(silenceTimeout);
+                    setupSilenceTimeout();
+                }
             };
+
             mediaRecorder.onstop = handleRecordingStop;
             mediaRecorder.start();
             
-            isRecording = true;
-            recordBtn.classList.add('recording');
-            icon.textContent = 'stop';
+            // Initial silence timeout
+            setupSilenceTimeout();
+
         } catch (err) {
-            agentMessage.textContent = 'Microphone access denied.';
+            playFallback('Microphone access denied.');
             console.error('Microphone error:', err);
-            resetUI();
         }
     };
 
     const stopRecording = () => {
         console.log('--- Stop recording ---');
         if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-            isRecording = false;
-            recordBtn.classList.remove('recording');
-            icon.textContent = 'mic';
-            agentMessage.textContent = 'Thinking...';
+            mediaRecorder.stop(); // This will trigger onstop event
         }
     };
 
+    const setupSilenceTimeout = () => {
+        clearTimeout(silenceTimeout);
+        silenceTimeout = setTimeout(() => {
+            console.log("--- Silence detected, stopping recording ---");
+            playFallback("I didn't hear anything, please try again.");
+            if (agentState === 'RECORDING') {
+                stopRecording();
+            }
+            updateUI('IDLE');
+        }, 5000); // 5 seconds of silence
+    };
+
     const handleRecordingStop = async () => {
-        console.log('--- Handling recording stop ---');
+        clearTimeout(silenceTimeout);
         if (audioChunks.length === 0) {
             console.error("No audio recorded.");
-            agentMessage.textContent = 'No audio was recorded.';
-            resetUI();
+            updateUI('IDLE');
             return;
         }
+        
+        updateUI('THINKING');
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         
         try {
@@ -98,7 +124,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await response.json();
                 agentAudio.src = data.audio_url;
                 // Audio will autoplay due to 'autoplay' attribute
-                agentMessage.textContent = 'Playing response...';
             } else {
                 await playFallback();
             }
@@ -107,37 +132,51 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    const resetUI = () => {
-        isRecording = false;
-        recordBtn.classList.remove('recording');
-        icon.textContent = 'mic';
-        recordBtn.disabled = false;
-        agentMessage.textContent = 'Click the mic to start';
+    const updateUI = (state) => {
+        agentState = state;
+        console.log(`UI updated to state: ${state}`);
+        switch (state) {
+            case 'IDLE':
+                recordBtn.classList.remove('recording', 'thinking');
+                recordBtn.disabled = false;
+                icon.textContent = 'mic';
+                agentMessage.textContent = 'Click the mic to start';
+                break;
+            case 'RECORDING':
+                recordBtn.classList.add('recording');
+                recordBtn.classList.remove('thinking');
+                recordBtn.disabled = false;
+                icon.textContent = 'stop';
+                agentMessage.textContent = 'Listening...';
+                break;
+            case 'THINKING':
+                recordBtn.classList.add('thinking');
+                recordBtn.classList.remove('recording');
+                recordBtn.disabled = true;
+                icon.textContent = 'hourglass_top';
+                agentMessage.textContent = 'Thinking...';
+                break;
+            case 'SPEAKING':
+                recordBtn.classList.remove('recording', 'thinking');
+                recordBtn.disabled = false; // Enable for barge-in
+                icon.textContent = 'mic_off'; // Indicate user can interrupt
+                agentMessage.textContent = 'Playing response...';
+                break;
+        }
     };
 
     // --- Event Listeners ---
-    recordBtn.addEventListener('click', toggleRecording);
+    recordBtn.addEventListener('click', handleInteraction);
 
-    agentAudio.addEventListener('ended', () => {
-        console.log('Agent audio finished, starting new recording.');
-        agentMessage.textContent = 'Your turn...';
-        setTimeout(startRecording, 500);
-    });
-
-    agentAudio.addEventListener('error', async () => {
-        console.error('Error playing agent audio.');
-        await playFallback();
-    });
-
-    agentAudio.onplay = () => {
-        recordBtn.disabled = true;
-    };
-
+    agentAudio.onplay = () => updateUI('SPEAKING');
     agentAudio.onended = () => {
-        resetUI();
-        setTimeout(startRecording, 500); // Auto-record again
+        console.log('Agent audio finished.');
+        updateUI('IDLE');
+        // Optional: auto-record again after agent finishes
+        // setTimeout(startRecording, 500);
     };
+    agentAudio.onerror = () => playFallback('Error playing agent audio.');
 
     // Initial UI state
-    resetUI();
+    updateUI('IDLE');
 });
