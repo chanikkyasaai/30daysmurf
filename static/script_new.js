@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const recordBtn = document.getElementById('record-btn');
     const agentAudio = document.getElementById('echo-audio');
     const agentMessage = document.getElementById('echo-message');
-    const icon = recordBtn ? recordBtn.querySelector('.icon') : null;
+    const icon = recordBtn.querySelector('.icon');
     
     // New UI Elements
     const currentSessionId = document.getElementById('current-session-id');
@@ -30,12 +30,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set current session ID in UI
     if (currentSessionId) {
         currentSessionId.textContent = sessionId.split('_')[1] || sessionId.substring(0, 8);
-    }
-
-    // Check if required elements exist
-    if (!recordBtn) {
-        console.error('❌ Record button not found! Check HTML structure.');
-        return;
     }
 
     // --- State Management ---
@@ -58,6 +52,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentAudioElement;
     let isStreamingStarted = false;
     const SAMPLE_RATE = 44100;
+
+    // --- Initialize UI ---
+    updateUI('IDLE');
+    loadSessions();
 
     // --- Session Management Functions ---
     async function loadSessions() {
@@ -105,87 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    async function loadSession(newSessionId) {
-        try {
-            // Update session ID
-            sessionId = newSessionId;
-            
-            // Update URL without reloading
-            const newUrl = `${window.location.pathname}?session_id=${newSessionId}`;
-            window.history.replaceState({ path: newUrl }, '', newUrl);
-            
-            // Update UI session ID display
-            if (currentSessionId) {
-                currentSessionId.textContent = sessionId.split('_')[1] || sessionId.substring(0, 8);
-            }
-            
-            // Load chat history for this session
-            await loadChatHistory(newSessionId);
-            
-            // Update sessions list to highlight current session
-            await loadSessions();
-            
-        } catch (error) {
-            console.error('Error loading session:', error);
-            showToast('Failed to load session', 'error');
-        }
-    }
-
-    async function loadChatHistory(sessionIdToLoad) {
-        try {
-            console.log(`Loading chat history for session: ${sessionIdToLoad}`);
-            
-            const response = await fetch(`/api/chat/history/${sessionIdToLoad}?limit=50`);
-            if (!response.ok) {
-                throw new Error(`Failed to load chat history: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            console.log('Chat history loaded:', data);
-            
-            // Clear current conversation
-            clearConversationHistory();
-            
-            // Display chat history
-            if (data.history && data.history.length > 0) {
-                for (const turn of data.history) {
-                    displayChatTurn(turn.user_message, turn.agent_response, turn.timestamp);
-                }
-            } else {
-                // Show welcome message if no history
-                showWelcomeMessage();
-            }
-            
-        } catch (error) {
-            console.error('Error loading chat history:', error);
-            showToast('Failed to load chat history', 'error');
-        }
-    }
-
-    function clearConversationHistory() {
-        if (conversationHistory) {
-            // Remove all chat turns but keep the welcome message structure
-            const chatTurns = conversationHistory.querySelectorAll('.chat-turn');
-            chatTurns.forEach(turn => turn.remove());
-        }
-    }
-
-    function showWelcomeMessage() {
-        if (conversationHistory) {
-            const welcomeExists = conversationHistory.querySelector('.welcome-message');
-            if (!welcomeExists) {
-                const welcomeMessage = document.createElement('div');
-                welcomeMessage.className = 'welcome-message';
-                welcomeMessage.innerHTML = `
-                    <div class="welcome-icon">
-                        <span class="material-icons">🎭</span>
-                    </div>
-                    <h2>Namaste! I'm RAVI, your Comedy AI Assistant!</h2>
-                    <p>Ready for some laughs? Just click the mic and let's chat, yaar! I'll crack jokes while solving your problems. Guaranteed entertainment with every response! 😄</p>
-                `;
-                conversationHistory.appendChild(welcomeMessage);
-            }
-        }
+    function loadSession(newSessionId) {
+        // Update URL and reload page with new session
+        const newUrl = `${window.location.pathname}?session_id=${newSessionId}`;
+        window.location.href = newUrl;
     }
 
     function createNewSession() {
@@ -267,77 +188,43 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- Conversation Functions ---
-    function displayChatTurn(userMessage, agentResponse, timestamp) {
-        // Function to display historical chat turns with WhatsApp-style bubbles
-        
-        // Format timestamp if it's a string
-        let formattedTime = timestamp;
-        if (timestamp) {
-            try {
-                const date = new Date(timestamp);
-                formattedTime = date.toLocaleTimeString();
-            } catch (e) {
-                formattedTime = timestamp;
-            }
-        } else {
-            formattedTime = new Date().toLocaleTimeString();
-        }
-        
-        // Add user message bubble
-        addMessageBubble('user', userMessage, formattedTime);
-        
-        // Add agent response bubble
-        setTimeout(() => {
-            addMessageBubble('ai', agentResponse, formattedTime);
-        }, 100);
-    }
-
-    function addMessageBubble(type, content, timestamp = null) {
+    function addConversationTurn(userMessage, agentResponse) {
         // Remove welcome message if it exists
         const welcomeMessage = conversationHistory.querySelector('.welcome-message');
         if (welcomeMessage) {
             welcomeMessage.remove();
         }
 
-        const bubble = document.createElement('div');
-        bubble.className = `conversation-bubble ${type}`;
+        const turnElement = document.createElement('div');
+        turnElement.className = 'conversation-turn';
         
-        const time = timestamp || new Date().toLocaleTimeString();
+        const timestamp = new Date().toLocaleTimeString();
         
-        // Handle different content types
-        let bubbleContent = '';
-        if (typeof content === 'string') {
-            // Check if content contains HTML (like images)
-            if (content.includes('<img') || content.includes('<div')) {
-                bubbleContent = content;
-            } else {
-                bubbleContent = `<p>${content}</p>`;
-            }
-        } else {
-            bubbleContent = `<p>${content}</p>`;
-        }
-        
-        bubble.innerHTML = `
-            ${bubbleContent}
-            <div class="message-time">${time}</div>
+        turnElement.innerHTML = `
+            <div class="user-message">
+                <div class="message-avatar">
+                    <span class="material-icons">person</span>
+                </div>
+                <div class="message-content">
+                    ${userMessage}
+                    <div class="message-time">${timestamp}</div>
+                </div>
+            </div>
+            <div class="agent-message">
+                <div class="message-avatar">
+                    <span class="material-icons">smart_toy</span>
+                </div>
+                <div class="message-content">
+                    ${agentResponse}
+                    <div class="message-time">${timestamp}</div>
+                </div>
+            </div>
         `;
         
-        conversationHistory.appendChild(bubble);
+        conversationHistory.appendChild(turnElement);
         
-        // Scroll to bottom with animation
-        setTimeout(() => {
-            conversationHistory.scrollTop = conversationHistory.scrollHeight;
-        }, 100);
-    }
-
-    function addConversationTurn(userMessage, agentResponse) {
-        // Add user message bubble
-        addMessageBubble('user', userMessage);
-        
-        // Add agent response bubble with slight delay for natural feel
-        setTimeout(() => {
-            addMessageBubble('ai', agentResponse);
-        }, 300);
+        // Scroll to bottom
+        conversationHistory.scrollTop = conversationHistory.scrollHeight;
     }
 
     function updateLiveTranscript(text) {
@@ -621,11 +508,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log(`⏳ [Day 23] Showing retry toast: ${message.message}`);
                         showRetryToast(message.message, message.attempt, message.max_retries);
                     }
-                    // Handle generated images - NEW DAY 26 FEATURE
-                    else if (message.type === 'image_generated') {
-                        console.log(`🎨 [Day 26] Image generated: ${message.image_url}`);
-                        displayGeneratedImage(message.image_url, message.image_path);
-                    }
                     // Handle final audio message
                     else if (message.type === 'audio_complete') {
                         console.log(`🎉 [Day 23] Audio streaming complete! Total chunks received: ${audioChunks.length}`);
@@ -644,18 +526,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log('🎬 [Day 23] Playing final assembled audio');
                         playAccumulatedChunks();
                         
-                        // Reset streaming state but keep WebSocket open for continuous conversation
+                        // Reset state for next interaction
                         setTimeout(() => {
                             isStreamingStarted = false;
                             audioChunksForPlayback = [];
                             audioChunks = [];
                             clearLiveTranscript();
-                            // Go back to RECORDING state since WebSocket is still open and listening
-                            updateUI('RECORDING');
-                            console.log('🔄 [Day 23] Ready for next conversation turn');
-                            
-                            // Show a subtle toast to indicate ready for next turn
-                            showToast('Ready for your next question! 🎤', 'success', 3000);
+                            updateUI('IDLE');
+                            console.log('🔄 [Day 23] Audio streaming state reset');
                         }, 1000);
                     }
                 } catch (error) {
@@ -705,126 +583,60 @@ document.addEventListener('DOMContentLoaded', function() {
         agentState = state;
         console.log(`UI updated to state: ${state}`);
         
-        // Update button - with null checks
+        // Update button
         switch (state) {
             case 'IDLE':
-                if (recordBtn) {
-                    recordBtn.classList.remove('recording', 'thinking');
-                    recordBtn.disabled = false;
-                }
-                if (icon) icon.textContent = 'mic';
-                if (agentMessage) agentMessage.textContent = 'Click the microphone to start';
-                if (agentStatusIndicator) agentStatusIndicator.className = 'status-indicator idle';
-                if (agentStatusText) agentStatusText.textContent = 'Ready to listen';
+                recordBtn.classList.remove('recording', 'thinking');
+                recordBtn.disabled = false;
+                icon.textContent = 'mic';
+                agentMessage.textContent = 'Click the microphone to start';
+                agentStatusIndicator.className = 'status-indicator idle';
+                agentStatusText.textContent = 'Ready to listen';
                 break;
             case 'RECORDING':
-                if (recordBtn) {
-                    recordBtn.classList.add('recording');
-                    recordBtn.classList.remove('thinking');
-                    recordBtn.disabled = false;
-                }
-                if (icon) icon.textContent = 'stop';
-                if (agentMessage) agentMessage.textContent = 'Listening... (Click to stop)';
-                if (agentStatusIndicator) agentStatusIndicator.className = 'status-indicator listening';
-                if (agentStatusText) agentStatusText.textContent = 'Listening for your voice...';
+                recordBtn.classList.add('recording');
+                recordBtn.classList.remove('thinking');
+                recordBtn.disabled = false;
+                icon.textContent = 'stop';
+                agentMessage.textContent = 'Listening...';
+                agentStatusIndicator.className = 'status-indicator listening';
+                agentStatusText.textContent = 'Listening...';
                 break;
             case 'THINKING':
-                if (recordBtn) {
-                    recordBtn.classList.add('thinking');
-                    recordBtn.classList.remove('recording');
-                    recordBtn.disabled = true;
-                }
-                if (icon) icon.textContent = 'hourglass_top';
-                if (agentMessage) agentMessage.textContent = 'Processing...';
-                if (agentStatusIndicator) agentStatusIndicator.className = 'status-indicator processing';
-                if (agentStatusText) agentStatusText.textContent = 'Processing your request';
+                recordBtn.classList.add('thinking');
+                recordBtn.classList.remove('recording');
+                recordBtn.disabled = true;
+                icon.textContent = 'hourglass_top';
+                agentMessage.textContent = 'Processing...';
+                agentStatusIndicator.className = 'status-indicator processing';
+                agentStatusText.textContent = 'Processing your request';
                 break;
             case 'SPEAKING':
-                if (recordBtn) {
-                    recordBtn.classList.remove('recording', 'thinking');
-                    recordBtn.disabled = false; // Enable for barge-in
-                }
-                if (icon) icon.textContent = 'mic_off'; // Indicate user can interrupt
-                if (agentMessage) agentMessage.textContent = 'Playing response... (Click to interrupt)';
-                if (agentStatusIndicator) agentStatusIndicator.className = 'status-indicator speaking';
-                if (agentStatusText) agentStatusText.textContent = 'Speaking...';
+                recordBtn.classList.remove('recording', 'thinking');
+                recordBtn.disabled = false; // Enable for barge-in
+                icon.textContent = 'mic_off'; // Indicate user can interrupt
+                agentMessage.textContent = 'Playing response...';
+                agentStatusIndicator.className = 'status-indicator speaking';
+                agentStatusText.textContent = 'Speaking...';
                 break;
         }
     };
 
     // --- Event Listeners ---
-    if (recordBtn) {
-        recordBtn.addEventListener('click', handleInteraction);
-    }
+    recordBtn.addEventListener('click', handleInteraction);
 
-    if (agentAudio) {
-        agentAudio.onplay = () => updateUI('SPEAKING');
-        agentAudio.onended = () => {
-            console.log('Agent audio finished.');
-            // Check if WebSocket is still open - if so, go back to recording state
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                updateUI('RECORDING');
-                console.log('🎤 Audio finished but still listening for next turn');
-            } else {
-                updateUI('IDLE');
-                console.log('🏁 Audio finished and WebSocket closed');
-            }
-        };
-        agentAudio.onerror = () => playFallback('Error playing agent audio.');
-    }
-
-    // --- Day 26: Image Display Function (WhatsApp Style) ---
-    function displayGeneratedImage(imageUrl, imagePath) {
-        console.log('🎨 Displaying generated image:', imageUrl);
-        
-        // Create image content for the bubble
-        const imageContent = `
-            <div style="text-align: center;">
-                <h4 style="margin: 0 0 10px 0; color: #4CAF50; font-size: 14px;">🎨 RAVI's Masterpiece</h4>
-                <img src="${imageUrl}" alt="Generated by RAVI AI" style="
-                    max-width: 100%;
-                    max-height: 300px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                    cursor: pointer;
-                    margin-bottom: 10px;
-                " onclick="window.open('${imageUrl}', '_blank')">
-                <div>
-                    <button onclick="
-                        const a = document.createElement('a');
-                        a.href = '${imageUrl}';
-                        a.download = 'ravi_art_${Date.now()}.png';
-                        a.click();
-                    " style="
-                        padding: 6px 12px;
-                        background: #4CAF50;
-                        color: white;
-                        border: none;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        font-size: 12px;
-                        margin-top: 5px;
-                    ">📥 Download</button>
-                </div>
-            </div>
-        `;
-        
-        // Add image as an AI message bubble
-        addMessageBubble('ai', imageContent);
-        
-        // Show success toast
-        showToast('🎨 Image generated successfully! Click to enlarge.', 'success');
-    }
+    agentAudio.onplay = () => updateUI('SPEAKING');
+    agentAudio.onended = () => {
+        console.log('Agent audio finished.');
+        updateUI('IDLE');
+    };
+    agentAudio.onerror = () => playFallback('Error playing agent audio.');
 
     // New session button
     if (newSessionBtn) {
         newSessionBtn.addEventListener('click', createNewSession);
     }
 
-    // --- Initialize UI ---
+    // Initial UI state
     updateUI('IDLE');
-    loadSessions();
-    
-    // Load chat history for current session
-    loadChatHistory(sessionId);
 });
