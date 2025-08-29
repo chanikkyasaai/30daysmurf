@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // API Key Input Elements
     const assemblyaiKeyInput = document.getElementById('assemblyai-key');
     const geminiKeyInput = document.getElementById('gemini-key');
-    const murfrKeyInput = document.getElementById('murf-key');
+    const murfKeyInput = document.getElementById('murf-key');
     const tavilyKeyInput = document.getElementById('tavily-key');
 
     // Set current session ID in UI
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const keys = JSON.parse(savedKeys);
                 if (assemblyaiKeyInput) assemblyaiKeyInput.value = keys.assemblyai || '';
                 if (geminiKeyInput) geminiKeyInput.value = keys.gemini || '';
-                if (murfrKeyInput) murfrKeyInput.value = keys.murf || '';
+                if (murfKeyInput) murfKeyInput.value = keys.murf || '';
                 if (tavilyKeyInput) tavilyKeyInput.value = keys.tavily || '';
                 console.log('🔑 API keys loaded from localStorage');
                 
