@@ -7,19 +7,25 @@ from tavily import TavilyClient
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def get_runtime_api_key() -> str:
+    """Get Tavily API key from runtime storage only, NO fallback to environment."""
+    try:
+        # Import here to avoid circular imports
+        from main import runtime_api_keys
+        return runtime_api_keys.get('tavily', '')
+    except:
+        return ''
+
 class WebSearchService:
     def __init__(self):
-        self.api_key = os.getenv("TAVILY_API_KEY")
-        if not self.api_key:
-            logger.warning("TAVILY_API_KEY environment variable not set. Web search will be disabled.")
-            self.client = None
-        else:
-            self.client = TavilyClient(api_key=self.api_key)
-            logger.info("Tavily WebSearch service initialized")
+        # Don't initialize with env variable anymore
+        self.client = None
+        logger.info("WebSearch service initialized (client will be created per request)")
     
     def is_available(self) -> bool:
         """Check if web search is available"""
-        return self.client is not None
+        api_key = get_runtime_api_key()
+        return bool(api_key)
     
     async def search_web(self, query: str, max_results: int = 3) -> Optional[Dict]:
         """
@@ -32,15 +38,20 @@ class WebSearchService:
         Returns:
             Search results with title, content, and URL
         """
-        if not self.is_available():
-            logger.error("Web search is not available - TAVILY_API_KEY not configured")
+        # Get API key from runtime storage only
+        api_key = get_runtime_api_key()
+        if not api_key:
+            logger.error("Web search is not available - Tavily API key not configured in user settings")
             return None
+        
+        # Create client with runtime API key
+        client = TavilyClient(api_key=api_key)
             
         try:
             logger.info(f"Searching web for: '{query}'")
             
             # Use Tavily's search method
-            response = self.client.search(
+            response = client.search(
                 query=query,
                 search_depth="basic",  # Can be "basic" or "advanced"
                 max_results=max_results,

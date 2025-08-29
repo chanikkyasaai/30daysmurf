@@ -3,24 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Voice Agent</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>RAVI - Your Comedy AI Assistant</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <h1>30 Days of AI Voice Agents</h1>
-        <p class="matrix-text">Day 11: Robust Error Handling</p>
-
-        <div class="card">
-            <h2>Conversational Agent</h2>
-            <p id="echo-message">Click "Start Recording" to speak.</p>
-            <div class="button-container">
-                <button id="start-record">Start Recording</button>
-                <button id="stop-record" disabled>Stop Recording</button>
+    <div class="main-container">
+        <!-- Left Panel: Sessions -->
+        <div class="sessions-panel">
+            <div class="sessions-header">
+                <h2>Comedy Sessions</h2>
+                <button id="new-session-btn" title="New Comedy Chat">+</button>
             </div>
-            <audio id="echo-audio" controls style="display: none; width: 100%; margin-top: 1rem;"></audio>
+            <div id="sessions-list">
+                <!-- Session items will be loaded here by script.js -->
+            </div>
+            <div class="session-info">
+                <p>Current Session: <span id="current-session-id"></span></p>
+            </div>
+        </div>
+
+        <!-- Center Panel: Agent Interaction -->
+        <div class="main-panel">
+            <header class="main-header">
+                <h1>RAVI - Your Comedy AI Assistant</h1>
+                <p>Day 24 - Standup Comedian Voice Agent</p>
+            </header>
+
+            <div id="agent-section">
+                <div id="agent-status">
+                    <span id="agent-status-indicator" class="status-indicator idle"></span>
+                    <span id="agent-status-text">Ready to listen</span>
+                </div>
+                <button id="record-btn">
+                    <span class="icon material-icons">mic</span>
+                </button>
+                <p id="echo-message">Click the microphone to start</p>
+                <div id="audio-indicator" style="display: none;">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            </div>
+
+            <div class="transcript-section">
+                <h3><span class="material-icons">mic</span> Live Transcript</h3>
+                <p id="current-transcript"></p>
+            </div>
+            
+            <audio id="echo-audio" style="display: none;"></audio>
+        </div>
+
+        <!-- Right Panel: Chat History -->
+        <div class="chat-panel">
+            <div class="chat-header">
+                <h2><span class="material-icons">forum</span> Conversation</h2>
+            </div>
+            <div id="conversation-history">
+                <!-- Chat messages will be loaded here -->
+            </div>
         </div>
     </div>
+
+    <div id="toast-container"></div>
+
     <script src="/static/script.js"></script>
 </body>
 </html>

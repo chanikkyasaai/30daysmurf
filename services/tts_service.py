@@ -3,15 +3,27 @@ from murf import Murf
 from murf.core.api_error import ApiError
 from fastapi import HTTPException
 
-murf_client = Murf(api_key=os.getenv("MURF_API_KEY"))
+def get_runtime_api_key() -> str:
+    """Get Murf API key from runtime storage only, NO fallback to environment."""
+    try:
+        # Import here to avoid circular imports
+        from main import runtime_api_keys
+        return runtime_api_keys.get('murf', '')
+    except:
+        return ''
 
 def generate_tts_audio(text: str, voice_id: str = "en-IN-rohan") -> str:
     """
     Generate TTS audio with comedian persona voice settings.
     Using Indian English male voice with customized parameters for standup comedy feel.
     """
-    if not os.getenv("MURF_API_KEY"):
-        raise HTTPException(status_code=500, detail="Murf API key not configured")
+    # Get API key from runtime storage only
+    api_key = get_runtime_api_key()
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Murf API key not configured. Please configure it in the API settings.")
+    
+    # Create client with runtime API key
+    murf_client = Murf(api_key=api_key)
     try:
         if len(text) > 2900:
             text = text[:2900]
@@ -33,6 +45,14 @@ def generate_comedian_tts_audio(text: str) -> str:
     """
     Specialized TTS function for comedian persona with optimal Indian English male voices.
     """
+    # Get API key from runtime storage only
+    api_key = get_runtime_api_key()
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Murf API key not configured. Please configure it in the API settings.")
+    
+    # Create client with runtime API key
+    murf_client = Murf(api_key=api_key)
+    
     # Best Indian English male voices for comedy (in order of preference)
     indian_male_voices = [
         "en-IN-rohan",      # Best choice: Conversational, Promo, Narration - perfect for comedy

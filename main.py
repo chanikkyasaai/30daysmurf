@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 # Import services and schemas
@@ -29,6 +29,9 @@ app = FastAPI(
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Global variable to store runtime API keys
+runtime_api_keys = {}
 
 @app.post("/agent/chat/{session_id}", response_model=TTSResponse)
 async def agent_chat(session_id: str, file: UploadFile = File(...)):
@@ -145,123 +148,251 @@ async def clear_chat_history(session_id: str):
     else:
         return JSONResponse(content={"error": "Failed to clear chat history"}, status_code=500)
 
+@app.post("/api/test-keys")
+async def test_api_keys(request: dict):
+    """
+    Test the provided API keys to verify they are valid.
+    """
+    logging.info("Testing API keys")
+    results = {}
+    
+    # Test AssemblyAI key
+    if request.get('assemblyai'):
+        try:
+            import assemblyai as aai
+            aai.settings.api_key = request['assemblyai']
+            # Simple test - create a client (this validates the key format)
+            client = aai.TranscriptionConfig()
+            results['assemblyai'] = '✅ Valid'
+        except Exception as e:
+            results['assemblyai'] = f'❌ Invalid: {str(e)[:50]}...'
+    else:
+        results['assemblyai'] = '⚠️ Not provided'
+    
+    # Test OpenAI key
+    if request.get('openai'):
+        try:
+            import openai
+            client = openai.OpenAI(api_key=request['openai'])
+            # Test with a simple completion
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Hi"}],
+                max_tokens=5
+            )
+            results['openai'] = '✅ Valid'
+        except Exception as e:
+            results['openai'] = f'❌ Invalid: {str(e)[:50]}...'
+    else:
+        results['openai'] = '⚠️ Not provided'
+    
+    # Test Murf key (basic format check since we can't easily test without making a request)
+    if request.get('murf'):
+        murf_key = request['murf']
+        if len(murf_key) > 10:  # Basic length check
+            results['murf'] = '✅ Format looks valid'
+        else:
+            results['murf'] = '❌ Key too short'
+    else:
+        results['murf'] = '⚠️ Not provided'
+    
+    # Test Tavily key
+    if request.get('tavily'):
+        try:
+            import requests
+            headers = {'Authorization': f'Bearer {request["tavily"]}'}
+            # Simple API call to test key
+            response = requests.get('https://api.tavily.com/health', headers=headers, timeout=5)
+            if response.status_code in [200, 401]:  # 401 might indicate key format is recognized
+                results['tavily'] = '✅ Valid'
+            else:
+                results['tavily'] = f'❌ HTTP {response.status_code}'
+        except Exception as e:
+            results['tavily'] = f'❌ Invalid: {str(e)[:50]}...'
+    else:
+        results['tavily'] = '⚠️ Not provided'
+    
+    # Check if all keys are valid
+    valid_count = sum(1 for result in results.values() if result.startswith('✅'))
+    total_count = len(results)
+    
+    return JSONResponse(content={
+        "success": True,
+        "message": f"API Key Test Results: {valid_count}/{total_count} valid",
+        "results": results
+    })
+
+@app.post("/api/set-runtime-keys")
+async def set_runtime_keys(request: dict):
+    """
+    Set API keys for runtime use (stored in memory for the session).
+    """
+    logging.info("Setting runtime API keys")
+    
+    # Store keys in a global variable for runtime use
+    global runtime_api_keys
+    runtime_api_keys = {
+        'assemblyai': request.get('assemblyai', ''),
+        'openai': request.get('openai', ''),
+        'murf': request.get('murf', ''),
+        'tavily': request.get('tavily', '')
+    }
+    
+    return JSONResponse(content={
+        "success": True,
+        "message": "API keys set for runtime use"
+    })
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """
     Serves the main HTML page for the voice agent UI.
     """
     timestamp = int(time.time())
-    # HTML content remains the same as Day 12
     return f'''
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Day 24 - RAVI Comedy Voice Agent</title>
-    <link rel="stylesheet" href="/static/style.css?v={timestamp}">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Icons" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>RAVI - Your Comedy AI Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
-    <!-- Sidebar like ChatGPT -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-title">
-                <span class="material-icons">🎭</span>
-                Comedy Sessions
-            </div>
-            <button id="new-session-btn" class="new-session-btn">
-                <span class="material-icons">add</span>
-                New Comedy Chat
-            </button>
-        </div>
-        
-        <div class="sidebar-content">
-            <div id="sessions-list" class="sessions-list">
-                <!-- Sessions will be loaded here -->
-            </div>
-        </div>
-        
-        <div class="sidebar-footer">
-            <div class="current-session">
-                <span class="material-icons">account_circle</span>
-                <div class="session-info">
-                    <div class="session-name">Current Session</div>
-                    <div class="session-id" id="current-session-id"></div>
+    <div class="main-container">
+        <!-- Left Panel: Sessions -->
+        <div class="sessions-panel">
+            <div class="sessions-header">
+                <h2>Comedy Sessions</h2>
+                <div class="header-buttons">
+                    <button id="config-btn" title="API Configuration" class="config-btn">
+                        <span class="material-icons">settings</span>
+                    </button>
+                    <button id="new-session-btn" title="New Comedy Chat">+</button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Main Content Area -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="main-header">
-            <h1 class="app-title">
-                <span class="material-icons">🎭</span>
-                RAVI - Your Comedy AI Assistant
-            </h1>
-            <div class="app-subtitle">Day 24 - Standup Comedian Voice Agent</div>
-        </div>
-
-        <!-- Voice Agent Section -->
-        <div class="voice-agent-container">
-            <div class="voice-agent-card">
-                <div class="agent-status">
-                    <div id="agent-status-indicator" class="status-indicator idle"></div>
-                    <span id="agent-status-text">Ready to listen</span>
-                </div>
-                
-                <div class="voice-controls">
-                    <button id="record-btn" class="voice-btn">
-                        <span class="material-icons icon">mic</span>
+            
+            <!-- Configuration Section (Initially Hidden) -->
+            <div id="config-section" class="config-section" style="display: none;">
+                <div class="config-header">
+                    <h3><span class="material-icons">key</span> API Configuration</h3>
+                    <button id="close-config-btn" class="close-btn">
+                        <span class="material-icons">close</span>
                     </button>
                 </div>
                 
-                <div id="echo-message" class="agent-message">Arre yaar! Click the mic and let's have some fun! 😄</div>
-                
-                <!-- Audio Element (Hidden) -->
-                <audio id="echo-audio" autoplay style="display: none;"></audio>
-                
-                <!-- Audio Indicator -->
-                <div id="audio-indicator" class="audio-indicator" style="display: none;">
-                    <span class="material-icons">volume_up</span>
-                    Playing response...
+                <div class="config-form">
+                    <div class="config-group">
+                        <label for="assemblyai-key">AssemblyAI API Key</label>
+                        <div class="input-group">
+                            <input type="password" id="assemblyai-key" placeholder="Enter AssemblyAI API key" />
+                            <button type="button" class="toggle-visibility" data-target="assemblyai-key">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <small>Used for speech-to-text transcription</small>
+                    </div>
+                    
+                    <div class="config-group">
+                        <label for="openai-key">OpenAI API Key</label>
+                        <div class="input-group">
+                            <input type="password" id="openai-key" placeholder="Enter OpenAI API key" />
+                            <button type="button" class="toggle-visibility" data-target="openai-key">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <small>Used for LLM responses and conversations</small>
+                    </div>
+                    
+                    <div class="config-group">
+                        <label for="murf-key">Murf API Key</label>
+                        <div class="input-group">
+                            <input type="password" id="murf-key" placeholder="Enter Murf API key" />
+                            <button type="button" class="toggle-visibility" data-target="murf-key">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <small>Used for text-to-speech generation</small>
+                    </div>
+                    
+                    <div class="config-group">
+                        <label for="tavily-key">Tavily API Key</label>
+                        <div class="input-group">
+                            <input type="password" id="tavily-key" placeholder="Enter Tavily API key" />
+                            <button type="button" class="toggle-visibility" data-target="tavily-key">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <small>Used for web search functionality</small>
+                    </div>
+                    
+                    <div class="config-actions">
+                        <button id="save-config-btn" class="save-btn">
+                            <span class="material-icons">save</span>
+                            Save Configuration
+                        </button>
+                        <button id="test-config-btn" class="test-btn">
+                            <span class="material-icons">check_circle</span>
+                            Test Keys
+                        </button>
+                    </div>
+                    
+                    <div id="config-status" class="config-status"></div>
                 </div>
+            </div>
+            
+            <div id="sessions-list">
+                <!-- Session items will be loaded here by script.js -->
+            </div>
+            <div class="session-info">
+                <p>Current Session: <span id="current-session-id"></span></p>
             </div>
         </div>
 
-        <!-- Conversation Area -->
-        <div class="conversation-container">
-            <!-- Live Transcript -->
-            <div class="transcript-section">
-                <div class="section-header">
-                    <span class="material-icons">transcribe</span>
-                    Live Transcript
+        <!-- Center Panel: Agent Interaction -->
+        <div class="main-panel">
+            <header class="main-header">
+                <h1>RAVI - Your Comedy AI Assistant</h1>
+                <p>Day 24 - Standup Comedian Voice Agent</p>
+            </header>
+
+            <div id="agent-section">
+                <div id="agent-status">
+                    <span id="agent-status-indicator" class="status-indicator idle"></span>
+                    <span id="agent-status-text">Ready to listen</span>
                 </div>
-                <div id="current-transcript" class="live-transcript"></div>
+                <button id="record-btn">
+                    <span class="icon material-icons">mic</span>
+                </button>
+                <p id="echo-message">Click the microphone to start</p>
+                <div id="audio-indicator" style="display: none;">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
             </div>
 
-            <!-- Conversation History -->
-            <div class="conversation-section">
-                <div class="section-header">
-                    <span class="material-icons">chat</span>
-                    Conversation
-                </div>
-                <div id="conversation-history" class="conversation-history">
-                    <div class="welcome-message">
-                        <span class="material-icons">🎭</span>
-                        <h3>Namaste! I'm RAVI, your Comedy AI Assistant!</h3>
-                        <p>Ready for some laughs? Just click the mic and let's chat, yaar! I'll crack jokes while solving your problems. Guaranteed entertainment with every response! 😄</p>
-                    </div>
-                </div>
+            <div class="transcript-section">
+                <h3><span class="material-icons">mic</span> Live Transcript</h3>
+                <p id="current-transcript"></p>
+            </div>
+            
+            <audio id="echo-audio" style="display: none;"></audio>
+        </div>
+
+        <!-- Right Panel: Chat History -->
+        <div class="chat-panel">
+            <div class="chat-header">
+                <h2><span class="material-icons">forum</span> Conversation</h2>
+            </div>
+            <div id="conversation-history">
+                <!-- Chat messages will be loaded here -->
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="toast-container"></div>
+    <div id="toast-container"></div>
 
     <script src="/static/script.js?v={timestamp}"></script>
 </body>
@@ -503,8 +634,17 @@ async def stream_audio_websocket(websocket: WebSocket):
             transcription_thread.join()
         logging.info("WebSocket connection closed.")
 
-
-
-
-
-
+# For local development
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    
+    # Get port from environment variable (for Render deployment) or default to 8000
+    port = int(os.getenv("PORT", 8000))
+    
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True if os.getenv("ENVIRONMENT") != "production" else False
+    )

@@ -27,10 +27,350 @@ document.addEventListener('DOMContentLoaded', function() {
     const newSessionBtn = document.getElementById('new-session-btn');
     const toastContainer = document.getElementById('toast-container');
 
+    // Configuration Elements
+    const configBtn = document.getElementById('config-btn');
+    const configSection = document.getElementById('config-section');
+    const closeConfigBtn = document.getElementById('close-config-btn');
+    const saveConfigBtn = document.getElementById('save-config-btn');
+    const testConfigBtn = document.getElementById('test-config-btn');
+    const configStatus = document.getElementById('config-status');
+    
+    // API Key Input Elements
+    const assemblyaiKeyInput = document.getElementById('assemblyai-key');
+    const openaiKeyInput = document.getElementById('openai-key');
+    const murfrKeyInput = document.getElementById('murf-key');
+    const tavilyKeyInput = document.getElementById('tavily-key');
+
     // Set current session ID in UI
     if (currentSessionId) {
         currentSessionId.textContent = sessionId.split('_')[1] || sessionId.substring(0, 8);
     }
+
+    // --- Configuration Management ---
+    const API_KEYS_STORAGE_KEY = 'ravi_api_keys';
+    const CHAT_HISTORY_STORAGE_KEY = 'ravi_chat_history';
+    const SESSION_LIST_STORAGE_KEY = 'ravi_session_list';
+
+    // Client-side Chat History Management
+    class ClientChatStorage {
+        constructor() {
+            this.chatHistory = this.loadChatHistory();
+            this.sessionList = this.loadSessionList();
+        }
+
+        loadChatHistory() {
+            try {
+                const stored = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+                return stored ? JSON.parse(stored) : {};
+            } catch (error) {
+                console.error('Error loading chat history from localStorage:', error);
+                return {};
+            }
+        }
+
+        loadSessionList() {
+            try {
+                const stored = localStorage.getItem(SESSION_LIST_STORAGE_KEY);
+                return stored ? JSON.parse(stored) : [];
+            } catch (error) {
+                console.error('Error loading session list from localStorage:', error);
+                return [];
+            }
+        }
+
+        saveChatTurn(sessionId, userMessage, agentResponse) {
+            try {
+                // Ensure session exists in history
+                if (!this.chatHistory[sessionId]) {
+                    this.chatHistory[sessionId] = [];
+                }
+
+                // Add new turn
+                const turn = {
+                    user_message: userMessage,
+                    agent_response: agentResponse,
+                    timestamp: new Date().toISOString()
+                };
+
+                this.chatHistory[sessionId].push(turn);
+
+                // Limit history to last 100 turns per session
+                if (this.chatHistory[sessionId].length > 100) {
+                    this.chatHistory[sessionId] = this.chatHistory[sessionId].slice(-100);
+                }
+
+                // Update session list
+                this.updateSessionList(sessionId);
+
+                // Save to localStorage
+                localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(this.chatHistory));
+                localStorage.setItem(SESSION_LIST_STORAGE_KEY, JSON.stringify(this.sessionList));
+
+                console.log('💾 Chat turn saved to localStorage');
+                return true;
+            } catch (error) {
+                console.error('Error saving chat turn:', error);
+                return false;
+            }
+        }
+
+        updateSessionList(sessionId) {
+            // Remove existing entry if it exists
+            this.sessionList = this.sessionList.filter(s => s.session_id !== sessionId);
+
+            // Add/update session
+            const session = {
+                session_id: sessionId,
+                last_activity: new Date().toISOString(),
+                message_count: this.chatHistory[sessionId] ? this.chatHistory[sessionId].length : 0
+            };
+
+            this.sessionList.unshift(session);
+
+            // Limit session list to 50 most recent
+            if (this.sessionList.length > 50) {
+                this.sessionList = this.sessionList.slice(0, 50);
+            }
+        }
+
+        getChatHistory(sessionId, limit = 50) {
+            const history = this.chatHistory[sessionId] || [];
+            // Return in chronological order (oldest first) for proper display
+            return history.slice(-limit);
+        }
+
+        getSessionList(limit = 20) {
+            return this.sessionList.slice(0, limit);
+        }
+
+        clearSessionHistory(sessionId) {
+            try {
+                if (this.chatHistory[sessionId]) {
+                    delete this.chatHistory[sessionId];
+                    this.sessionList = this.sessionList.filter(s => s.session_id !== sessionId);
+                    
+                    localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(this.chatHistory));
+                    localStorage.setItem(SESSION_LIST_STORAGE_KEY, JSON.stringify(this.sessionList));
+                    
+                    console.log('🗑️ Session history cleared from localStorage');
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Error clearing session history:', error);
+                return false;
+            }
+        }
+    }
+
+    // Initialize client-side chat storage
+    const clientChatStorage = new ClientChatStorage();
+    
+    // Load saved API keys
+    function loadApiKeys() {
+        try {
+            const savedKeys = localStorage.getItem(API_KEYS_STORAGE_KEY);
+            if (savedKeys) {
+                const keys = JSON.parse(savedKeys);
+                if (assemblyaiKeyInput) assemblyaiKeyInput.value = keys.assemblyai || '';
+                if (openaiKeyInput) openaiKeyInput.value = keys.openai || '';
+                if (murfrKeyInput) murfrKeyInput.value = keys.murf || '';
+                if (tavilyKeyInput) tavilyKeyInput.value = keys.tavily || '';
+                console.log('🔑 API keys loaded from localStorage');
+                
+                // Send to backend for runtime use
+                fetch('/api/set-runtime-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(keys)
+                }).then(response => response.json())
+                  .then(result => {
+                      if (result.success) {
+                          console.log('🔗 API keys sent to backend for runtime use');
+                      }
+                  }).catch(error => {
+                      console.warn('Failed to send API keys to backend:', error);
+                  });
+            }
+        } catch (error) {
+            console.error('Error loading API keys:', error);
+        }
+    }
+    
+    // Save API keys
+    function saveApiKeys() {
+        try {
+            const keys = {
+                assemblyai: assemblyaiKeyInput?.value?.trim() || '',
+                openai: openaiKeyInput?.value?.trim() || '',
+                murf: murfrKeyInput?.value?.trim() || '',
+                tavily: tavilyKeyInput?.value?.trim() || ''
+            };
+            localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(keys));
+            
+            // Also send to backend for runtime use
+            fetch('/api/set-runtime-keys', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(keys)
+            }).then(response => response.json())
+              .then(result => {
+                  if (result.success) {
+                      showConfigStatus('Configuration saved and applied successfully!', 'success');
+                      console.log('💾 API keys saved and sent to backend');
+                  } else {
+                      showConfigStatus('Saved locally but failed to apply: ' + result.message, 'error');
+                  }
+              }).catch(error => {
+                  showConfigStatus('Saved locally but failed to apply: ' + error.message, 'error');
+              });
+            
+            return true;
+        } catch (error) {
+            console.error('Error saving API keys:', error);
+            showConfigStatus('Failed to save configuration: ' + error.message, 'error');
+            return false;
+        }
+    }
+    
+    // Check if API keys are configured
+    function areApiKeysConfigured() {
+        try {
+            const savedKeys = localStorage.getItem(API_KEYS_STORAGE_KEY);
+            if (!savedKeys) return false;
+            
+            const keys = JSON.parse(savedKeys);
+            // Check if at least the essential keys are configured
+            const hasAssemblyAI = keys.assemblyai && keys.assemblyai.trim() !== '';
+            const hasOpenAI = keys.openai && keys.openai.trim() !== '';
+            const hasMurf = keys.murf && keys.murf.trim() !== '';
+            
+            return hasAssemblyAI && hasOpenAI && hasMurf;
+        } catch (error) {
+            console.error('Error checking API keys:', error);
+            return false;
+        }
+    }
+    
+    // Show API configuration prompt
+    function showApiConfigPrompt() {
+        showToast('Please configure your API keys first! Click the gear icon to set up.', 'warning', 5000);
+        
+        // Optionally pulse the config button to draw attention
+        if (configBtn) {
+            configBtn.style.animation = 'pulse 1s ease-in-out 3';
+            setTimeout(() => {
+                configBtn.style.animation = '';
+            }, 3000);
+        }
+    }
+    
+    // Test API keys
+    async function testApiKeys() {
+        showConfigStatus('Testing API keys...', 'info');
+        
+        const keys = {
+            assemblyai: assemblyaiKeyInput?.value?.trim() || '',
+            openai: openaiKeyInput?.value?.trim() || '',
+            murf: murfrKeyInput?.value?.trim() || '',
+            tavily: tavilyKeyInput?.value?.trim() || ''
+        };
+        
+        try {
+            const response = await fetch('/api/test-keys', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(keys)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showConfigStatus(`✅ ${result.message}`, 'success');
+            } else {
+                showConfigStatus(`❌ ${result.message}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error testing API keys:', error);
+            showConfigStatus('Failed to test API keys: ' + error.message, 'error');
+        }
+    }
+    
+    // Show configuration status message
+    function showConfigStatus(message, type) {
+        if (!configStatus) return;
+        
+        configStatus.textContent = message;
+        configStatus.className = `config-status ${type}`;
+        configStatus.style.display = 'block';
+        
+        // Auto-hide after 5 seconds for success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                configStatus.style.display = 'none';
+            }, 5000);
+        }
+    }
+    
+    // Toggle password visibility
+    function setupPasswordToggle() {
+        document.querySelectorAll('.toggle-visibility').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                const input = document.getElementById(targetId);
+                const icon = this.querySelector('.material-icons');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.textContent = 'visibility_off';
+                } else {
+                    input.type = 'password';
+                    icon.textContent = 'visibility';
+                }
+            });
+        });
+    }
+    
+    // Configuration Event Listeners
+    if (configBtn) {
+        configBtn.addEventListener('click', function() {
+            if (configSection.style.display === 'none') {
+                configSection.style.display = 'block';
+                configBtn.classList.add('active');
+                loadApiKeys(); // Load keys when opening
+            } else {
+                configSection.style.display = 'none';
+                configBtn.classList.remove('active');
+            }
+        });
+    }
+    
+    if (closeConfigBtn) {
+        closeConfigBtn.addEventListener('click', function() {
+            configSection.style.display = 'none';
+            configBtn?.classList.remove('active');
+        });
+    }
+    
+    if (saveConfigBtn) {
+        saveConfigBtn.addEventListener('click', saveApiKeys);
+    }
+    
+    if (testConfigBtn) {
+        testConfigBtn.addEventListener('click', testApiKeys);
+    }
+    
+    // Initialize password toggle functionality
+    setupPasswordToggle();
+    
+    // Load API keys on page load
+    loadApiKeys();
 
     // Check if required elements exist
     if (!recordBtn) {
@@ -62,9 +402,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Session Management Functions ---
     async function loadSessions() {
         try {
-            const response = await fetch('/api/chat/sessions?limit=20');
-            const data = await response.json();
-            displaySessions(data.sessions);
+            // Use client-side storage instead of server API
+            const sessions = clientChatStorage.getSessionList(20);
+            displaySessions(sessions);
         } catch (error) {
             console.error('Error loading sessions:', error);
         }
@@ -135,20 +475,16 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             console.log(`Loading chat history for session: ${sessionIdToLoad}`);
             
-            const response = await fetch(`/api/chat/history/${sessionIdToLoad}?limit=50`);
-            if (!response.ok) {
-                throw new Error(`Failed to load chat history: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            console.log('Chat history loaded:', data);
+            // Use client-side storage instead of server API
+            const history = clientChatStorage.getChatHistory(sessionIdToLoad, 50);
+            console.log('Chat history loaded from localStorage:', history);
             
             // Clear current conversation
             clearConversationHistory();
             
-            // Display chat history
-            if (data.history && data.history.length > 0) {
-                for (const turn of data.history) {
+            // Display chat history in chronological order (oldest first)
+            if (history && history.length > 0) {
+                for (const turn of history) {
                     displayChatTurn(turn.user_message, turn.agent_response, turn.timestamp);
                 }
             } else {
@@ -331,6 +667,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function addConversationTurn(userMessage, agentResponse) {
+        // Save to client-side storage
+        clientChatStorage.saveChatTurn(sessionId, userMessage, agentResponse);
+        
         // Add user message bubble
         addMessageBubble('user', userMessage);
         
@@ -338,6 +677,9 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             addMessageBubble('ai', agentResponse);
         }, 300);
+        
+        // Update session list in sidebar
+        loadSessions();
     }
 
     function updateLiveTranscript(text) {
@@ -514,6 +856,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const handleInteraction = () => {
+        // Check if API keys are configured before allowing interaction
+        if (!areApiKeysConfigured()) {
+            showApiConfigPrompt();
+            return;
+        }
+        
         switch (agentState) {
             case 'IDLE':
             case 'THINKING': // Allow starting a new recording even if it's thinking

@@ -3,13 +3,26 @@ import assemblyai as aai
 from fastapi import HTTPException
 import logging
 
-aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
+def get_runtime_api_key() -> str:
+    """Get AssemblyAI API key from runtime storage, NO fallback to environment."""
+    try:
+        # Import here to avoid circular imports
+        from main import runtime_api_keys
+        return runtime_api_keys.get('assemblyai', '')
+    except:
+        return ''
 
 def transcribe_audio_data(audio_data: bytes) -> str:
     logging.info("--- ENTERING STT SERVICE ---")
-    if not aai.settings.api_key:
-        logging.error("AssemblyAI API key is not configured.")
-        raise HTTPException(status_code=500, detail="AssemblyAI API key not configured")
+    
+    # Get API key from runtime storage only
+    api_key = get_runtime_api_key()
+    if not api_key:
+        logging.error("AssemblyAI API key is not configured in user settings.")
+        raise HTTPException(status_code=500, detail="AssemblyAI API key not configured. Please configure it in the API settings.")
+    
+    # Set the API key for this request
+    aai.settings.api_key = api_key
     
     try:
         logging.info("Step 1: Creating TranscriptionConfig")
