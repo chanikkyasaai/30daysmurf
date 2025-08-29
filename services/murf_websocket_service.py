@@ -11,14 +11,28 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class MurfWebSocketService:
-    def __init__(self):
-        self.api_key = os.getenv("MURF_API_KEY")
+    def __init__(self, api_key: str = None):
+        # Use provided API key or get from runtime storage
+        if api_key:
+            self.api_key = api_key
+        else:
+            self.api_key = self.get_runtime_api_key()
+        
         if not self.api_key:
-            raise ValueError("MURF_API_KEY environment variable not set.")
+            raise ValueError("Murf API key not configured. Please set it in the API configuration.")
         
         # Correct WebSocket URL from Murf API documentation
         self.websocket_url = "wss://api.murf.ai/v1/speech/stream-input"
         # Use a unique context per request to avoid active context limit issues
+    
+    def get_runtime_api_key(self) -> str:
+        """Get Murf API key from runtime storage."""
+        try:
+            # Import here to avoid circular imports
+            from main import runtime_api_keys
+            return runtime_api_keys.get('murf', '')
+        except:
+            return ''
         
     async def send_text_to_murf(self, text: str, voice_id: str = "en-IN-rohan") -> Optional[str]:
         """
@@ -148,8 +162,10 @@ class MurfWebSocketService:
         
         return audio_responses
 
-# Global instance
-murf_ws_service = MurfWebSocketService()
+# Function to create instance with runtime API key
+def get_murf_service():
+    """Get MurfWebSocketService instance with runtime API key."""
+    return MurfWebSocketService()
 
 async def send_to_murf_websocket(text: str, voice_id: str = "en-IN-rohan") -> Optional[str]:
     """
@@ -162,4 +178,5 @@ async def send_to_murf_websocket(text: str, voice_id: str = "en-IN-rohan") -> Op
     Returns:
         Base64 encoded audio or None
     """
-    return await murf_ws_service.send_text_to_murf(text, voice_id)
+    murf_service = get_murf_service()
+    return await murf_service.send_text_to_murf(text, voice_id)

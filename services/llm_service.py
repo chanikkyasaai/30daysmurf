@@ -221,9 +221,14 @@ def stream_llm_response(query: str):
     """
     Streams the LLM response for the given query and prints each chunk to the console.
     """
-    if not os.getenv("GEMINI_API_KEY"):
-        print("Gemini API key not configured")
+    api_key = get_runtime_api_key('gemini')
+    if not api_key:
+        print("❌ Gemini API key not configured")
         return
+    
+    # Configure Gemini with runtime API key
+    genai.configure(api_key=api_key)
+    
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         stream = model.generate_content(query, stream=True)
