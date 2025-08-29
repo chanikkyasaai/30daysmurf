@@ -425,10 +425,7 @@ from assemblyai.streaming.v3 import (
     TurnEvent,
 )
 
-# IMPORTANT: Set your AssemblyAI API key in your .env file
-ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
-if not ASSEMBLYAI_API_KEY:
-    raise ValueError("ASSEMBLYAI_API_KEY environment variable not set.")
+# API keys will be provided by users via the frontend
 
 # Define event handlers
 def on_begin(self, event: BeginEvent):
@@ -527,12 +524,20 @@ def run_transcription(audio_queue: queue.Queue, message_queue: queue.Queue, webs
         logging.info(f"Session terminated: {event.audio_duration_seconds}s of audio processed")
 
     try:
-        if not aai.settings.api_key:
-            raise ValueError("AssemblyAI API key is not set.")
+        # Use runtime API key if available
+        global runtime_api_keys
+        assemblyai_key = runtime_api_keys.get('assemblyai') if runtime_api_keys else None
+        
+        if not assemblyai_key:
+            logging.warning("AssemblyAI API key not available in runtime. Streaming transcription may not work.")
+            return
+        
+        # Set the API key for this session
+        aai.settings.api_key = assemblyai_key
 
         client = StreamingClient(
             StreamingClientOptions(
-                api_key=aai.settings.api_key,
+                api_key=assemblyai_key,
             )
         )
 
