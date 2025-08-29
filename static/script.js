@@ -903,7 +903,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Initialize WebSocket (include session_id for per-session chat history)
-            ws = new WebSocket(`ws://localhost:8000/ws/stream-audio?session_id=${encodeURIComponent(sessionId)}`);
+            // Use dynamic WebSocket URL based on current location
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws/stream-audio?session_id=${encodeURIComponent(sessionId)}`;
+            
+            console.log('Connecting to WebSocket:', wsUrl);
+            ws = new WebSocket(wsUrl);
             ws.onerror = (e) => {
                 console.error('WebSocket error:', e);
                 playFallback('WebSocket error.');
