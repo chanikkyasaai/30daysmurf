@@ -169,22 +169,19 @@ async def test_api_keys(request: dict):
     else:
         results['assemblyai'] = '⚠️ Not provided'
     
-    # Test OpenAI key
-    if request.get('openai'):
+    # Test Gemini key
+    if request.get('gemini'):
         try:
-            import openai
-            client = openai.OpenAI(api_key=request['openai'])
-            # Test with a simple completion
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": "Hi"}],
-                max_tokens=5
-            )
-            results['openai'] = '✅ Valid'
+            import google.generativeai as genai
+            genai.configure(api_key=request['gemini'])
+            # Test with a simple generation
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content("Hi")
+            results['gemini'] = '✅ Valid'
         except Exception as e:
-            results['openai'] = f'❌ Invalid: {str(e)[:50]}...'
+            results['gemini'] = f'❌ Invalid: {str(e)[:50]}...'
     else:
-        results['openai'] = '⚠️ Not provided'
+        results['gemini'] = '⚠️ Not provided'
     
     # Test Murf key (basic format check since we can't easily test without making a request)
     if request.get('murf'):
@@ -233,7 +230,7 @@ async def set_runtime_keys(request: dict):
     global runtime_api_keys
     runtime_api_keys = {
         'assemblyai': request.get('assemblyai', ''),
-        'openai': request.get('openai', ''),
+        'gemini': request.get('gemini', ''),
         'murf': request.get('murf', ''),
         'tavily': request.get('tavily', '')
     }
@@ -295,10 +292,10 @@ async def root():
                     </div>
                     
                     <div class="config-group">
-                        <label for="openai-key">OpenAI API Key</label>
+                        <label for="gemini-key">Gemini API Key</label>
                         <div class="input-group">
-                            <input type="password" id="openai-key" placeholder="Enter OpenAI API key" />
-                            <button type="button" class="toggle-visibility" data-target="openai-key">
+                            <input type="password" id="gemini-key" placeholder="Enter Gemini API key" />
+                            <button type="button" class="toggle-visibility" data-target="gemini-key">
                                 <span class="material-icons">visibility</span>
                             </button>
                         </div>

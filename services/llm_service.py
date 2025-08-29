@@ -15,8 +15,8 @@ def get_runtime_api_key(service: str) -> str:
         
         # Map service names to their keys
         key_mapping = {
-            'openai': 'openai',
-            'gemini': 'openai',  # Using OpenAI key for now since Gemini uses different setup
+            'openai': 'gemini',  # Map openai requests to gemini key
+            'gemini': 'gemini',
             'assemblyai': 'assemblyai',
             'murf': 'murf',
             'tavily': 'tavily'
@@ -245,8 +245,10 @@ async def stream_llm_to_murf_and_client(query: str, websocket=None, session_id: 
     Streams the LLM response, sends it to Murf WebSocket for TTS conversion,
     and streams the base64 audio to the client via WebSocket.
     """
-    if not os.getenv("GEMINI_API_KEY"):
-        print("❌ Gemini API key not configured")
+    # Use runtime API key instead of environment variable
+    gemini_api_key = get_runtime_api_key('gemini')
+    if not gemini_api_key:
+        print("❌ Gemini API key not configured - please configure it in the frontend")
         return
 
     # Check WebSocket connection state early
@@ -271,7 +273,7 @@ async def stream_llm_to_murf_and_client(query: str, websocket=None, session_id: 
         from google.api_core.exceptions import ResourceExhausted
 
         print(f"🤖 Querying LLM with: '{query}'")
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        genai.configure(api_key=gemini_api_key)
 
         # Select chat session (stateful) if session_id is provided
         if session_id:

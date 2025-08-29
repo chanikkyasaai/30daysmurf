@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // API Key Input Elements
     const assemblyaiKeyInput = document.getElementById('assemblyai-key');
-    const openaiKeyInput = document.getElementById('openai-key');
+    const geminiKeyInput = document.getElementById('gemini-key');
     const murfrKeyInput = document.getElementById('murf-key');
     const tavilyKeyInput = document.getElementById('tavily-key');
 
@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (savedKeys) {
                 const keys = JSON.parse(savedKeys);
                 if (assemblyaiKeyInput) assemblyaiKeyInput.value = keys.assemblyai || '';
-                if (openaiKeyInput) openaiKeyInput.value = keys.openai || '';
+                if (geminiKeyInput) geminiKeyInput.value = keys.gemini || '';
                 if (murfrKeyInput) murfrKeyInput.value = keys.murf || '';
                 if (tavilyKeyInput) tavilyKeyInput.value = keys.tavily || '';
                 console.log('🔑 API keys loaded from localStorage');
@@ -204,8 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const keys = {
                 assemblyai: assemblyaiKeyInput?.value?.trim() || '',
-                openai: openaiKeyInput?.value?.trim() || '',
-                murf: murfrKeyInput?.value?.trim() || '',
+                gemini: geminiKeyInput?.value?.trim() || '',
+                murf: murfKeyInput?.value?.trim() || '',
                 tavily: tavilyKeyInput?.value?.trim() || ''
             };
             localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(keys));
@@ -246,10 +246,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const keys = JSON.parse(savedKeys);
             // Check if at least the essential keys are configured
             const hasAssemblyAI = keys.assemblyai && keys.assemblyai.trim() !== '';
-            const hasOpenAI = keys.openai && keys.openai.trim() !== '';
+            const hasGemini = keys.gemini && keys.gemini.trim() !== '';
             const hasMurf = keys.murf && keys.murf.trim() !== '';
             
-            return hasAssemblyAI && hasOpenAI && hasMurf;
+            return hasAssemblyAI && hasGemini && hasMurf;
         } catch (error) {
             console.error('Error checking API keys:', error);
             return false;
@@ -275,8 +275,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const keys = {
             assemblyai: assemblyaiKeyInput?.value?.trim() || '',
-            openai: openaiKeyInput?.value?.trim() || '',
-            murf: murfrKeyInput?.value?.trim() || '',
+            gemini: geminiKeyInput?.value?.trim() || '',
+            murf: murfKeyInput?.value?.trim() || '',
             tavily: tavilyKeyInput?.value?.trim() || ''
         };
         
