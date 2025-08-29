@@ -13,10 +13,9 @@ logger = logging.getLogger(__name__)
 
 class ImageGenerationService:
     def __init__(self):
-        # Using FREE Hugging Face Inference API
-        self.api_key = os.getenv("HUGGINGFACE_API_KEY")  # Optional - works without it too
+        # Using FREE Hugging Face Inference API - no authentication needed
         self.base_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-        logger.info("Free Hugging Face Image Generation service initialized")
+        logger.info("Free Hugging Face Image Generation service initialized (no auth required)")
     
     def is_available(self) -> bool:
         """Check if image generation is available"""
@@ -33,11 +32,12 @@ class ImageGenerationService:
             Dictionary with image data and metadata
         """
         try:
-            logger.info(f"Generating FREE image for prompt: '{prompt}'")
+            logger.info(f"Generating FREE image for prompt: '{prompt}' (no authentication)")
             
-            headers = {}
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
+            # No headers needed for free access
+            headers = {
+                "Content-Type": "application/json"
+            }
             
             payload = {
                 "inputs": prompt,
